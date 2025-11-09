@@ -143,7 +143,3 @@ Because CPU and GPU run asynchronously, you need `cudaDeviceSynchronize()` or ot
 | `blockIdx.x`              | Block ID within the grid         |
 | `cudaDeviceSynchronize()` | Waits for GPU to finish          |
 | Parallelism               | 5 GPU threads run simultaneously |
-
----
-
-Would you like me to extend this example next — for instance, to show how each thread can process a different array element (a real parallel computation example)?
