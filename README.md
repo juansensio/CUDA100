@@ -2,8 +2,8 @@
 
 Este repositorio contiene el código desarrollado durante el reto de 100 días de programación con CUDA.
 
-0. [hello_world](./000_hello_world.cu)
-1. [vector_add](./001_vector_add)
+0. [hello_world](./000_hello_world.cu): Programa de prueba para verificar que la GPU está funcionando correctamente.
+1. [vector_add](./001_vector_add): Suma de dos vectores de manera eficiente utilizando la GPU.
 
 ## Recursos
 
