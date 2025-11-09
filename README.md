@@ -1,17 +1,17 @@
 # CUDA100
 
-Este repositorio contiene el código desarrollado durante el reto de 100 días de programación con CUDA.
+This repository contains the code developed during the 100 days of CUDA programming challenge.
 
-0. [hello_world](./000_hello_world.cu): Programa de prueba para verificar que la GPU está funcionando correctamente.
-1. [vector_add](./001_vector_add): Suma de dos vectores de manera eficiente utilizando la GPU.
+0. [hello_world](./000_hello_world.cu): Test program to verify that the GPU is working correctly.
+1. [vector_add](./001_vector_add): Efficiently adds two vectors using the GPU.
 
-## Recursos
+## Resources
 
-Lista de recursos utilizados durante el reto:
+List of resources used during the challenge:
 
-- Libro "cuda by example"
-- Libro "Programming Massively Parallel Processors"
-- Curso CUDA FreeCodeCamp https://youtu.be/86FAWCzIe_4?si=37G_SkoQEQp8dSod
-- Canal de Youtube de GPU Mode https://www.youtube.com/@GPUMODE/videos 
+- Book "CUDA by Example"
+- Book "Programming Massively Parallel Processors"
+- CUDA FreeCodeCamp Course https://youtu.be/86FAWCzIe_4?si=37G_SkoQEQp8dSod
+- GPU Mode Youtube Channel https://www.youtube.com/@GPUMODE/videos 
 
-Los ejemplos se han desarrollado en una NVIDIA RTX 3090 con CUDA 12.8 y driver 570.195.03 (Ubuntu 22.04)
+The examples were developed on an NVIDIA RTX 3090 with CUDA 12.8 and driver 570.195.03 (Ubuntu 22.04)
