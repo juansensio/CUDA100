@@ -48,7 +48,9 @@ class CUDABenchmark:
                                implementations: Dict[str, Callable],
                                test_data: Dict,
                                reference_func: Callable = None,
-                               reference_name: str = "PyTorch") -> pd.DataFrame:
+                               reference_name: str = "PyTorch",
+                               atol: float = 1e-5,
+                               rtol: float = 1e-5) -> pd.DataFrame:
         """Compare multiple implementations against a reference"""
         results = []
         
@@ -68,15 +70,34 @@ class CUDABenchmark:
             if reference_func:
                 try:
                     if isinstance(ref_output, torch.Tensor) and isinstance(result['result'], torch.Tensor):
-                        is_correct = torch.allclose(ref_output, result['result'], rtol=1e-5, atol=1e-6)
-                        result['correct'] = is_correct
-                        if not is_correct:
-                            max_diff = (ref_output - result['result']).abs().max().item()
-                            result['max_diff'] = max_diff
+                        # Ensure tensors are on the same device and have compatible dtypes
+                        ref_tensor = ref_output
+                        result_tensor = result['result']
+                        
+                        # Move to same device if needed
+                        if ref_tensor.device != result_tensor.device:
+                            result_tensor = result_tensor.to(ref_tensor.device)
+                        
+                        # Ensure same dtype for comparison
+                        if ref_tensor.dtype != result_tensor.dtype:
+                            result_tensor = result_tensor.to(ref_tensor.dtype)
+                        
+                        # Check shapes match
+                        if ref_tensor.shape != result_tensor.shape:
+                            result['correct'] = False
+                            result['error'] = f"Shape mismatch: ref {ref_tensor.shape} vs result {result_tensor.shape}"
+                        else:
+                            # Compare with tolerance 1e-5 for both rtol and atol
+                            is_correct = torch.allclose(ref_tensor, result_tensor, rtol=rtol, atol=atol)
+                            result['correct'] = is_correct
+                            if not is_correct:
+                                max_diff = (ref_tensor - result_tensor).abs().max().item()
+                                result['max_diff'] = max_diff
                     else:
                         result['correct'] = None
                 except Exception as e:
-                    result['correct'] = f"Error: {e}"
+                    result['correct'] = False
+                    result['error'] = f"Error: {e}"
             
             results.append(result)
         

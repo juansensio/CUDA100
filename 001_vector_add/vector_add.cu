@@ -1,4 +1,4 @@
-// #include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #include <stdio.h>
 
 __global__ void vector_add(const float* A, const float* B, float* C, int N) {
@@ -14,9 +14,6 @@ int main() {
     float B[] = {5.0, 6.0, 7.0, 8.0};
     float C[N];
     
-    int threadsPerBlock = 256;
-    int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
-
     float* A_d, *B_d, *C_d;
     cudaMalloc((void**)&A_d, N * sizeof(float));
     cudaMalloc((void**)&B_d, N * sizeof(float));
@@ -24,10 +21,18 @@ int main() {
     cudaMemcpy(A_d, A, N * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(B_d, B, N * sizeof(float), cudaMemcpyHostToDevice);
 
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
+
     vector_add<<<blocksPerGrid, threadsPerBlock>>>(A_d, B_d, C_d, N);
+
     cudaDeviceSynchronize();
 
     cudaMemcpy(C, C_d, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaFree(A_d);
+    cudaFree(B_d);
+    cudaFree(C_d);
     
     // Verify the result
     printf("A = [%.1f, %.1f, %.1f, %.1f]\n", A[0], A[1], A[2], A[3]);
@@ -47,8 +52,6 @@ int main() {
         printf("✓ Result is correct!\n");
     }
     
-    cudaFree(A_d);
-    cudaFree(B_d);
-    cudaFree(C_d);
+    
     return 0;
 }

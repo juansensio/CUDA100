@@ -1,5 +1,11 @@
 # Matrix Multiplication
 
+- [matrix_multiply.cu](./matrix_multiply.cu): Naive implementation ~10x slower than PyTorch.
+- [fast_matrix_multiply.cu](./fast_matrix_multiply.cu): Optimized implementation 
+
+References:
+- https://siboehm.com/articles/22/CUDA-MMM
+
 ## Problem Description
 
 Write a program to multiply two matrices (\(A\) and \(B\)) of 32-bit floating-point numbers on a GPU. All matrices are stored in **row-major** order.
@@ -11,7 +17,7 @@ Given:
 
 ---
 
-## Implementation Requirements
+###∫ Implementation Requirements
 
 - Use **only native features** (no external libraries).
 - Do **not** change the `solve` function signature.
@@ -19,7 +25,7 @@ Given:
 
 ---
 
-## Example 1
+### Example 1
 
 **Input:**
 
@@ -55,7 +61,7 @@ Given:
 
 ---
 
-## Example 2
+### Example 2
 
 **Input:**
 
@@ -91,7 +97,14 @@ Given:
 
 ---
 
-## Constraints
+### Constraints
 
 - 1 <= M, N, K <= 8192
 - Performance is measured at: \(M = 8192\), \(N = 6144\), \(K = 4096\)
+
+
+## Optimizations
+
+### Global memory coalescing
+
+Threads are grouped in warps of 32 threads. Sequential memory accesses by threads that are part of the same warp can be grouped and executed as one -> *global memory coalescing*. We can achive simply by swapping the block and thread indices.
