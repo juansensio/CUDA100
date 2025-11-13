@@ -154,9 +154,7 @@ int main() {
     dim3 grid_naive = get_grid_naive(M, N, K);
     dim3 block_naive = get_block_naive(M, N, K);
     matrix_multiply_naive<<<grid_naive, block_naive>>>(A_d, B_d, C_d, M, N, K);
-    CUDA_OK(cudaPeekAtLastError());
-    CUDA_OK(cudaDeviceSynchronize());
-    CUDA_OK(cudaMemcpy(C, C_d, M * N * sizeof(float), cudaMemcpyDeviceToHost));
+    
     
     if (verify_result(C, M, N, (float*)expected, 1e-6f)) {
         printf("✓ Naive kernel result is correct!\n");
