@@ -1,5 +1,7 @@
 # Matrix Multiplication
 
+nvcc naive.cu -lcublas
+
 - [matrix_multiply.cu](./matrix_multiply.cu): Naive implementation ~10x slower than PyTorch.
 - [fast_matrix_multiply.cu](./fast_matrix_multiply.cu): Optimized implementation 
 
