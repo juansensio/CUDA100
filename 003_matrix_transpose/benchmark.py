@@ -10,9 +10,9 @@ module = load(
 )
 
 def torch_matrix_transpose(A):
-    return A.T # creo que esto no mueve datos, solo cambia el view del tensor
+    return A.T.contiguous()
 
-a = torch.randn((10, 10), device='cuda')
+a = torch.randn((2, 3), device='cuda')
 
 c1 = torch_matrix_transpose(a)
 c2 = module.matrix_transpose(a)

@@ -7,6 +7,8 @@ threads are grouped in warps. memory accessess by threads in the same warp can b
 - the threads are sequential in memory
 - the threads are accessing consecutive memory locations
 
+row-major!
+
 ## shared memory
 
 ...

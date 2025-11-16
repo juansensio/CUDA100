@@ -12,7 +12,12 @@
     } \
 } while(0)
 
-__global__ void matrix_transpose(const float* A, float* At, int M, int N) {
+#define TILE_DIM   32
+#define BLOCK_ROWS 16
+
+__global__ void matrix_transpose(const float* __restrict__ A,
+    float* __restrict__ At,
+    int N, int M) {
     // int col = blockIdx.x * blockDim.x + threadIdx.x;
     // int row = blockIdx.y * blockDim.y + threadIdx.y;
     // if (row < N && col < M) {
@@ -21,36 +26,42 @@ __global__ void matrix_transpose(const float* A, float* At, int M, int N) {
     // ~500 GB/s
 
     // Shared memory tile - add 1 to avoid bank conflicts
-    __shared__ float tile[16][17];  // 16x16 tile with padding
+    __shared__ float tile[TILE_DIM][TILE_DIM + 1]; 
 
-    int bx = blockIdx.x, by = blockIdx.y;
-    int tx = threadIdx.x, ty = threadIdx.y;
-    
-    // Global indices for reading from A
-    int row = by * blockDim.y + ty;
-    int col = bx * blockDim.x + tx;
-    
-    // Load tile into shared memory (coalesced read)
-    if (row < N && col < M) {
-        tile[tx][ty] = A[row * M + col];
+    int x = blockIdx.x * TILE_DIM + threadIdx.x;  // column in A
+    int y = blockIdx.y * BLOCK_ROWS + threadIdx.y;  // row in A
+
+    // 1) Coalesced read from A into shared memory
+    //    Each thread reads multiple elements in steps of BLOCK_ROWS
+    for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS) {
+        int yj = y + j;
+        if (x < M && yj < N) {
+            tile[threadIdx.y + j][threadIdx.x] = A[yj * M + x];
+        }
     }
-    
+
+    // 1 thread takes charge of BLOCK_ROWS elements in A
+
     __syncthreads();
     
-    // Global indices for writing to At (transposed)
-    int row_out = bx * blockDim.x + tx; 
-    int col_out = by * blockDim.y + ty; 
-    
-    // Write from shared memory (coalesced write)
-    if (row_out < M && col_out < N) {
-        At[row_out * N + col_out] = tile[tx][ty]; 
+    // 2) Transpose block index for output
+    int xo = blockIdx.y * BLOCK_ROWS + threadIdx.x;  // column in At
+    int yo = blockIdx.x * TILE_DIM + threadIdx.y;  // row in At
+
+    // 3) Coalesced write from shared memory to At (transposed)
+    for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS) {
+        int yoj = yo + j;
+        if (xo < N && yoj < M) {
+            // note: tile is indexed transposed: [col][row]
+            At[yoj * N + xo] = tile[threadIdx.x][threadIdx.y + j];
+        }
     }
-    // ~700 GB/s
+    // ~1000 GB/s 
 };
 
 void benchmark_against_cublas() {
     printf("\nBenchmarking transpose kernel against cuBLAS for various sizes...\n");
-    printf("%-10s %-18s %-18s %-18s %-18s %-18s\n", "N", "Custom (ms)", "GB/s", "cuBLAS (ms)", "GB/s", "Speedup");
+    printf("%-10s %-14s %-10s %-7s %-14s %-10s %-7s\n", "N", "Custom (ms)", "GB/s", "%Max", "cuBLAS(ms)", "GB/s", "%Max");
     int sizes[] = {1024, 2048, 4096, 8192};
     const int num_sizes = sizeof(sizes)/sizeof(sizes[0]);
     const int num_runs = 5;
@@ -150,15 +161,19 @@ void benchmark_against_cublas() {
         cudaEventDestroy(start_cublas);
         cudaEventDestroy(stop_cublas);
 
-        // --- Throughput computation ---
+        // --- Throughput computation with percentage of theoretical max (936.2 GB/s) ---
         double num_bytes = (double)M * N * sizeof(float) * 2; // read & write
         double gb_naive = num_bytes / (ms_naive * 1e6);
         double gb_cublas = ms_cublas > 0 ? num_bytes / (ms_cublas * 1e6) : 0.0;
-        double speedup = gb_cublas > 0 ? gb_naive / gb_cublas : 0.0;
+        double pct_naive = 100.0 * gb_naive / 936.2; // 936.2 GB/s is the theoretical max bandwidth in a 3090 RTX
+        double pct_cublas = gb_cublas > 0 ? 100.0 * gb_cublas / 936.2 : 0.0;
+        // double speedup = gb_cublas > 0 ? gb_naive / gb_cublas : 0.0;
 
-        printf("%-10d %-18.4f %-18.4f %-18.4f %-18.4f %-18.4f\n",
-            M, ms_naive, gb_naive, ms_cublas, gb_cublas, speedup);
+        printf("%-10d %-14f %-10.2f %-7.2f %-14f %-10.2f %-7.2f\n",
+            M, ms_naive, gb_naive, pct_naive,
+            ms_cublas, gb_cublas, pct_cublas);
 
+            
         free(A);
         free(At_naive);
         free(At_cublas);
@@ -180,10 +195,10 @@ int main() {
     CUDA_OK(cudaMemcpy(A_d, A, M * N * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_OK(cudaMemcpy(At_d, At, M * N * sizeof(float), cudaMemcpyHostToDevice));
 
-    dim3 threadsPerBlock(16, 16);  // 16x16 = 256 threads per block
-    dim3 grid((M + threadsPerBlock.x - 1) / threadsPerBlock.x,
-              (N + threadsPerBlock.y - 1) / threadsPerBlock.y);
-    matrix_transpose<<<grid, threadsPerBlock>>>(A_d, At_d, M, N);
+    dim3 block(TILE_DIM, BLOCK_ROWS);
+    dim3 grid((M + TILE_DIM - 1) / TILE_DIM,
+              (N + BLOCK_ROWS - 1) / BLOCK_ROWS);
+    matrix_transpose<<<grid, block>>>(A_d, At_d, N, M);
 
     CUDA_OK(cudaPeekAtLastError());
     CUDA_OK(cudaDeviceSynchronize());

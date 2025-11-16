@@ -1,5 +1,7 @@
 # Matrix Transpose
 
+https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/
+
 **Difficulty:** Easy
 
 Write a program that transposes a matrix of 32-bit floating point numbers on a GPU. The transpose of a matrix switches its rows and columns. Given a matrix $A$ of dimensions $r \times c$, the transpose $A^T$ will have dimensions $c \times r$. All matrices are stored in row-major format.
