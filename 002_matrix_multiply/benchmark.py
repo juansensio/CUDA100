@@ -3,20 +3,20 @@ import torch
 from torch.utils.cpp_extension import load
 
 module = load(
-    name='matrix_multiply_naive',
-    sources=['naive.cpp', 'naive.cu'],
+    name='matrix_multiply_coalescing',
+    sources=['coalescing.cpp', 'coalescing.cu'],
     extra_cuda_cflags=['-O2'],
     verbose=True
 )
 
-def torch_matrix_multiply_naive(A, B):
+def torch_matrix_multiply(A, B):
     return A @ B
 
 a = torch.randn((10, 10), device='cuda')
 b = torch.randn((10, 10), device='cuda')
 
-c1 = torch_matrix_multiply_naive(a, b)
-c2 = module.matrix_multiply_naive(a, b)
+c1 = torch_matrix_multiply(a, b)
+c2 = module.matrix_multiply_coalescing(a, b)
 assert torch.allclose(c1, c2, atol=1e-5)
 
 Ns = [512, 1024, 2048, 4096]
@@ -36,20 +36,20 @@ for size in Ns:
 
     # Warm-up runs
     for _ in range(2):
-        _ = torch_matrix_multiply_naive(a, b)
-        _ = module.matrix_multiply_naive(a, b)
+        _ = torch_matrix_multiply(a, b)
+        _ = module.matrix_multiply_coalescing(a, b)
     torch.cuda.synchronize()
 
     for _ in range(rounds):
         torch.cuda.synchronize()
         start_time = time.time()
-        c1 = torch_matrix_multiply_naive(a, b)
+        c1 = torch_matrix_multiply(a, b)
         torch.cuda.synchronize()
         pytorch_times.append(time.time() - start_time)
 
         torch.cuda.synchronize()
         start_time = time.time()
-        c2 = module.matrix_multiply_naive(a, b)
+        c2 = module.matrix_multiply_coalescing(a, b)
         torch.cuda.synchronize()
         custom_times.append(time.time() - start_time)
 
