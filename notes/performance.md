@@ -21,6 +21,13 @@ For a matrix multiplication of two MxK and KxN matrices, the total floating poin
 
 Our goal is to maximize the FLOPs of the program, ideally close to the theoretical peak performance of the hardware.
 
+### 3090 RTX
+
+- FP16 (half) 35.58 TFLOPS (1:1)
+- FP32 (float) 35.58 TFLOPS
+- FP64 (double) 556.0 GFLOPS (1:64)
+- Bandwidth 936.2 GB/s
+
 ## Other Metrics
 
 - Memory Bandwidth: The amount of data transferred between the CPU and GPU per second.
