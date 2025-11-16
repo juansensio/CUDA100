@@ -4,58 +4,46 @@
 
 Write a program that transposes a matrix of 32-bit floating point numbers on a GPU. The transpose of a matrix switches its rows and columns. Given a matrix $A$ of dimensions $r \times c$, the transpose $A^T$ will have dimensions $c \times r$. All matrices are stored in row-major format.
 
----
-
-## Implementation Requirements
-
-- Use only native features (external libraries are not permitted)
-- The `solve` function signature must remain unchanged
-- The final result must be written to the `output` matrix
-
----
-
 ## Examples
 
 ### Example 1
 
 Input: $2 \times 3$ matrix
-\[
+$$
 A = \begin{bmatrix}
 a_{00} & a_{01} & a_{02} \\
 a_{10} & a_{11} & a_{12}
 \end{bmatrix}
-\]
+$$
 
 Output: $3 \times 2$ matrix
-\[
+$$
 A^\top = \begin{bmatrix}
 a_{00} & a_{10} \\
 a_{01} & a_{11} \\
 a_{02} & a_{12}
 \end{bmatrix}
-\]
+$$
 
 ---
 
 ### Example 2
 
 Input: $3 \times 1$ matrix
-\[
+$$
 A = \begin{bmatrix}
 a_{00} \\
 a_{10} \\
 a_{20}
 \end{bmatrix}
-\]
+$$
 
 Output: $1 \times 3$ matrix
-\[
+$$
 A^\top = \begin{bmatrix}
 a_{00} & a_{10} & a_{20}
 \end{bmatrix}
-\]
-
----
+$$
 
 ## Constraints
 
