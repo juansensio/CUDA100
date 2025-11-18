@@ -57,6 +57,49 @@ __global__ void matrix_multiply_coalescing(
     }
 }
 
+#define BLOCK_SIZE 16
+
+__global__ void matrix_multiply_shared_memory(
+    const float* __restrict__ A,
+    const float* __restrict__ B,
+    float* __restrict__ C,
+    int M, int N, int K
+) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE];
+    float sum = 0.0f;
+    // Number of tiles along K dimension
+    int numTiles = (K + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    for (int t = 0; t < numTiles; ++t) {
+        int tiled_k_A = t * BLOCK_SIZE + threadIdx.x; // column in A
+        int tiled_k_B = t * BLOCK_SIZE + threadIdx.y; // row in B
+        // Load tile from A into shared memory
+        if (row < M && tiled_k_A < K) {
+            As[threadIdx.y][threadIdx.x] = A[row * K + tiled_k_A];
+        } else {
+            As[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        // Load tile from B into shared memory
+        if (tiled_k_B < K && col < N) {
+            Bs[threadIdx.y][threadIdx.x] = B[tiled_k_B * N + col];
+        } else {
+            Bs[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        __syncthreads();
+        // Compute partial sum for current tile
+        for (int k = 0; k < BLOCK_SIZE; ++k) {
+            sum += As[threadIdx.y][k] * Bs[k][threadIdx.x];
+        }
+        __syncthreads();
+    }
+    // Only write valid elements
+    if (row < M && col < N) {
+        C[row * N + col] = sum;
+    }
+}
+
 // Validation function
 int validate_kernel(const KernelDescriptor* kernel, 
                     const float* A, const float* B, 
@@ -193,7 +236,8 @@ BenchmarkResult benchmark_kernel(const KernelDescriptor* kernel,
 KernelDescriptor kernels[] = {
     {"cuBLAS", NULL, 1},
     {"Naive", matrix_multiply_naive, 0},
-    {"Coalescing", matrix_multiply_coalescing, 0}
+    {"Coalescing", matrix_multiply_coalescing, 0},
+    {"Shared Memory", matrix_multiply_shared_memory, 0}
 };
 const int num_kernels = sizeof(kernels) / sizeof(kernels[0]);
 

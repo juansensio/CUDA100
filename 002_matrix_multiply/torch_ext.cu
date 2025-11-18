@@ -70,3 +70,17 @@ torch::Tensor matrix_multiply_coalescing(torch::Tensor A, torch::Tensor B) {
     C10_CUDA_KERNEL_LAUNCH_CHECK();
     return output;
 }
+
+torch::Tensor matrix_multiply_shared_memory(torch::Tensor A, torch::Tensor B) {
+    CHECK_INPUT(A); CHECK_INPUT(B);
+    int m = A.size(0);
+    int k = A.size(1);
+    int n = B.size(1);
+    auto output = torch::empty({m, n}, A.options());
+    dim3 threadsPerBlock(16, 16);  
+    dim3 blocksPerGrid((n + threadsPerBlock.x - 1) / threadsPerBlock.x,
+                       (m + threadsPerBlock.y - 1) / threadsPerBlock.y);
+    matrix_multiply_shared_memory<<<blocksPerGrid, threadsPerBlock>>>(A.data_ptr<float>(), B.data_ptr<float>(), output.data_ptr<float>(), m, n, k);
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+    return output;
+}

@@ -31,6 +31,7 @@ kernels = [
     KernelDescriptor("PyTorch", lambda A, B: A @ B, is_baseline=True),
     KernelDescriptor("Naive", module.matrix_multiply_naive),
     KernelDescriptor("Coalescing", module.matrix_multiply_coalescing),
+    KernelDescriptor("Shared Memory", module.matrix_multiply_shared_memory),
     # KernelDescriptor("cuBLAS", module.matrix_multiply_cublas),  # Uncomment when ready
 ]
 
