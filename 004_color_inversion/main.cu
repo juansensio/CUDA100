@@ -19,7 +19,7 @@ __global__ void invert_kernel(unsigned char* __restrict__ image, int width, int 
     // if (idx < width * height * 4 && idx % 4 != 3) {
     //     image[idx] = 255 - image[idx];
     // }
-    // ~400GB
+    // ~400 GB/s
 
     const uint row = blockIdx.y * blockDim.y + threadIdx.y;
     const uint col = blockIdx.x * blockDim.x + threadIdx.x;
