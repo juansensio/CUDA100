@@ -5,7 +5,6 @@
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
-inline unsigned int CEIL_DIV(unsigned int a, unsigned int b) { return (a + b - 1) / b; }
 
 torch::Tensor matrix_multiply_naive(torch::Tensor A, torch::Tensor B) {
     CHECK_INPUT(A); CHECK_INPUT(B);

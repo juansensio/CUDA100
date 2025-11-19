@@ -18,3 +18,13 @@ row-major!
 ## shared memory
 
 Next to the large global memory, a GPU has a much smaller region of memory that is physically located on the chip, called shared memory (SMEM). Physically, there’s one shared memory per SM. Logically, this shared memory is partitioned among the blocks. This means that a thread can communicate with the other threads in its block via the shared memory chunk. As the shared memory is located on-chip, it has a much lower latency and higher bandwidth than global memory.
+
+![shared memory](./pics/shared_memory.png)
+
+## occupancy
+
+Have each thread compute more than one output element, which allows us to perform more of the work in registers and relying less on SMEM.
+
+The main reason this makes our kernel run faster is that it increases arithmetic intensity (Defined as the number of FLOPs executed per byte transferred (load + store!) between GMEM and SMEM.)
+
+![tiling](./pics/tiling.png)
