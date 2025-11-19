@@ -12,6 +12,12 @@
     } \
 } while(0)
 
+#define TILE_DIM   32
+#define BLOCK_ROWS 16
+
+__global__ void matrix_transpose(const float* __restrict__ A,
+    float* __restrict__ At,
+    int N, int M) {
     // int col = blockIdx.x * blockDim.x + threadIdx.x;
     // int row = blockIdx.y * blockDim.y + threadIdx.y;
     // if (row < N && col < M) {
@@ -19,12 +25,6 @@
     // }
     // ~500 GB/s
 
-#define TILE_DIM   32
-#define BLOCK_ROWS 16
-
-__global__ void matrix_transpose(const float* __restrict__ A,
-    float* __restrict__ At,
-    int N, int M) {
     // Shared memory tile - add 1 to avoid bank conflicts
     __shared__ float tile[TILE_DIM][TILE_DIM + 1]; 
     int x = blockIdx.x * TILE_DIM + threadIdx.x;  // column in A
