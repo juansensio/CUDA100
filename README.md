@@ -1,6 +1,6 @@
 # CUDA100
 
-This repository contains the code developed during the 100 days of CUDA programming challenge.
+This repository contains the code developed during my 100 days of CUDA programming challenge.
 
 0. [hello_world](./000_hello_world): Test program to verify that the GPU is working correctly.
 1. [vector_add](./001_vector_add): Efficiently adds two vectors using the GPU.
