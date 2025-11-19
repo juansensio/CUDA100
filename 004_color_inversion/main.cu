@@ -55,9 +55,13 @@ void benchmark() {
         CUDA_OK(cudaMalloc((void**)&image_d, bytes_A));
         CUDA_OK(cudaMemcpy(image_d, image, bytes_A, cudaMemcpyHostToDevice));
 
-        // One thread per RGBA component (as in kernel), so need width*height*4 threads
-        dim3 block(256);
-        dim3 grid((width * height * 4 + block.x - 1) / block.x);
+        // dim3 block(256);
+        // dim3 grid((width * height * 4 + block.x - 1) / block.x);
+        dim3 block(8, 8);
+        dim3 grid(
+            (width + block.x - 1) / block.x, 
+            (height + block.y - 1) / block.y
+        );
 
         // --- kernel timing ---
         float ms = 0.0f;
