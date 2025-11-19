@@ -6,6 +6,7 @@ This repository contains the code developed during the 100 days of CUDA programm
 1. [vector_add](./001_vector_add): Efficiently adds two vectors using the GPU.
 2. [matrix_multiply](./002_matrix_multiply): Efficiently multiplies two matrices using the GPU.
 3. [matrix_transpose](./003_matrix_transpose): Efficiently transposes a matrix using the GPU.
+4. [color_inversion](./004_color_inversion): Efficiently inverts the color of an image using the GPU.
 
 ## Resources
 
