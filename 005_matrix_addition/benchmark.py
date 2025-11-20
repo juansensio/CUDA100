@@ -37,8 +37,9 @@ for size in Ns:
 
     # Warm-up runs
     for _ in range(2):
-        _ = torch_matrix_add(A, B)
-        _ = module.matrix_add(A, B)
+        c1 = torch_matrix_add(A, B)
+        c2 = module.matrix_add(A, B)
+        assert torch.allclose(c1, c2, atol=1e-5)
     torch.cuda.synchronize()
 
     for _ in range(rounds):

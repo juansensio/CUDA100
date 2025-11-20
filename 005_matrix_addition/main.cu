@@ -14,12 +14,18 @@
 
 typedef unsigned int uint;
 
-__global__ void matrix_add(const float* A, const float* B, float* C, int N) {
+__global__ void matrix_add(
+    const float* __restrict__ A, 
+    const float* __restrict__ B, 
+    float* __restrict__ C, 
+    int N
+) {
     uint row = blockIdx.y * blockDim.y + threadIdx.y;
     uint col = blockIdx.x * blockDim.x + threadIdx.x;
     if (row < N && col < N) {
         C[row * N + col] = A[row * N + col] + B[row * N + col];
     }
+    
 };
 
 void benchmark() {
@@ -57,7 +63,7 @@ void benchmark() {
         CUDA_OK(cudaMemset(C_d, 0, bytes));
         CUDA_OK(cudaMemset(C_cublas_d, 0, bytes));
 
-        dim3 block(8, 8);
+        dim3 block(16, 16);
         dim3 grid((N + block.x - 1) / block.x, (N + block.y - 1) / block.y);
 
         // --- Time our matrix_add kernel ---
@@ -154,7 +160,7 @@ int main() {
     CUDA_OK(cudaMemcpy(A_d, A, N * N * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_OK(cudaMemcpy(B_d, B, N * N * sizeof(float), cudaMemcpyHostToDevice));
     
-    dim3 block(8, 8);
+    dim3 block(16, 16);
     dim3 grid((N + block.x - 1) / block.x, (N + block.y - 1) / block.y);
     matrix_add<<<grid, block>>>(A_d, B_d, C_d, N);
 
