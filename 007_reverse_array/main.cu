@@ -12,6 +12,8 @@
     } \
 } while(0)
 
+#define TILE 256
+
 __global__ void reverse_array(float* input, int N) {
     // int idx = blockIdx.x * blockDim.x + threadIdx.x;
     // if (idx < N) {
@@ -25,6 +27,22 @@ __global__ void reverse_array(float* input, int N) {
         input[idx] = input[mirror];
         input[mirror] = tmp;
     }
+
+    // __shared__ float bufA[TILE];
+    // __shared__ float bufB[TILE];
+    // size_t tile = blockIdx.x;
+    // size_t startA = tile * TILE;
+    // size_t startB = N - (tile + 1) * TILE;
+    // // If tiles cross or we passed the middle, stop
+    // if (startA >= startB + TILE) return;
+    // int t = threadIdx.x;
+    // // Load front and back tiles
+    // if (startA + t < N) bufA[t] = input[startA + t];
+    // if (startB + t < N) bufB[t] = input[startB + t];
+    // __syncthreads();
+    // // Write swapped & reversed
+    // if (startA + t < N) input[startA + t] = bufB[TILE - 1 - t];
+    // if (startB + t < N) input[startB + t] = bufA[TILE - 1 - t];
 };
 
 void benchmark() {
@@ -45,7 +63,7 @@ void benchmark() {
         CUDA_OK(cudaMalloc((void**)&A_d, bytes));
         CUDA_OK(cudaMemcpy(A_d, A, bytes, cudaMemcpyHostToDevice));
 
-        dim3 threadsPerBlock(256);
+        dim3 threadsPerBlock(TILE);
         dim3 gridDim(((N / 2) + threadsPerBlock.x  - 1) / threadsPerBlock.x);
 
         // --- kernel timing ---
@@ -94,7 +112,7 @@ int main() {
     CUDA_OK(cudaMalloc((void**)&A_d, N * sizeof(float)));
     CUDA_OK(cudaMemcpy(A_d, A, N * sizeof(float), cudaMemcpyHostToDevice));
     
-    dim3 block(256);
+    dim3 block(TILE);
     dim3 grid(((N / 2) + block.x - 1) / block.x);
     reverse_array<<<grid, block>>>(A_d, N);
 
