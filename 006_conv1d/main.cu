@@ -20,27 +20,42 @@
     } \
 } while(0)
 
+#define THREADS_PER_OUTPUT 1 // each thread handles multiple output elements
+
 __global__ void convolution_1d_kernel(
     const float* __restrict__ input, 
     const float* __restrict__ kernel, 
     float* __restrict__ output,
     int input_size, int kernel_size
 ) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < input_size - kernel_size + 1) {
-        float sum = 0.0f;
-        for (int i = 0; i < kernel_size; ++i) {
-            sum += input[idx + i] * kernel[i];
+    // int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    // if (idx < input_size - kernel_size + 1) {
+    //     float sum = 0.0f;
+    //     for (int i = 0; i < kernel_size; ++i) {
+    //         sum += input[idx + i] * kernel[i];
+    //     }
+    //     output[idx] = sum;
+    // }
+    // ~2.5 TFLOPs
+
+    // multiple threads per output element (do not improve performance)
+    int idx = blockIdx.x * blockDim.x * THREADS_PER_OUTPUT + threadIdx.x * THREADS_PER_OUTPUT;
+    for (int i = 0; i < THREADS_PER_OUTPUT; ++i) {
+        if (idx + i < input_size - kernel_size + 1) {
+            float sum = 0.0f;
+            for (int j = 0; j < kernel_size; ++j) {
+                sum += input[idx + i + j] * kernel[j];
+            }
+            output[idx + i] = sum;
         }
-        output[idx] = sum;
     }
-    // ~2 TFLOPs
 }
 
 // Calculate grid and block dimensions for convolution kernel
 void get_launch_config(int output_size, dim3* threadsPerBlock, dim3* blocksPerGrid) {
     *threadsPerBlock = dim3(256, 1, 1);
-    *blocksPerGrid = dim3((output_size + threadsPerBlock->x - 1) / threadsPerBlock->x, 1, 1);
+    // *blocksPerGrid = dim3((output_size + threadsPerBlock->x - 1) / threadsPerBlock->x, 1, 1);
+    *blocksPerGrid = dim3((output_size + threadsPerBlock->x * THREADS_PER_OUTPUT - 1) / (threadsPerBlock->x * THREADS_PER_OUTPUT), 1, 1);
 }
 
 void conv1d_custom(const float* h_input, const float* h_kernel, float* h_output,
