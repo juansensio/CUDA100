@@ -12,15 +12,15 @@
     } \
 } while(0)
 
-typedef unsigned int uint;
-
-__global__ void invert_kernel(unsigned char* __restrict__ image, int width, int height) {
     // const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
     // if (idx < width * height * 4 && idx % 4 != 3) {
     //     image[idx] = 255 - image[idx];
     // }
     // ~400 GB/s
 
+typedef unsigned int uint;
+
+__global__ void invert_kernel(unsigned char* __restrict__ image, int width, int height) {
     const uint row = blockIdx.y * blockDim.y + threadIdx.y;
     const uint col = blockIdx.x * blockDim.x + threadIdx.x;
     if (row < height && col < width) {
@@ -29,7 +29,6 @@ __global__ void invert_kernel(unsigned char* __restrict__ image, int width, int 
         image[idx + 1] = 255 - image[idx + 1];
         image[idx + 2] = 255 - image[idx + 2];
     }
-    // ~700 GB/s
 };
 
 void benchmark() {
@@ -110,9 +109,6 @@ int main() {
     CUDA_OK(cudaMalloc((void**)&image_d, width * height * 4 * sizeof(unsigned char)));
     CUDA_OK(cudaMemcpy(image_d, image, width * height * 4 * sizeof(unsigned char), cudaMemcpyHostToDevice));
     
-    // dim3 block(256);
-    // dim3 grid((width * height + block.x - 1) / block.x);
-
     dim3 block(8, 8);
     dim3 grid(
         (width + block.x - 1) / block.x, 
