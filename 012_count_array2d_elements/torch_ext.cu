@@ -9,16 +9,20 @@
 torch::Tensor count_equal_kernel_torch(torch::Tensor input, int64_t k) {
     CHECK_INPUT(input);
     TORCH_CHECK(input.dtype() == torch::kInt32, "Input tensor must be int32");
-    int N = input.numel();
+    TORCH_CHECK(input.dim() == 2, "Input tensor must be 2D");
+    int N = input.size(0);
+    int M = input.size(1);
     auto output = torch::zeros({}, input.options().dtype(torch::kInt32)); // Scalar output
 
-    dim3 block(256);
-    dim3 grid((N + block.x - 1) / block.x);
+    dim3 threadsPerBlock(16, 16);
+    dim3 blocksPerGrid((M + threadsPerBlock.x - 1) / threadsPerBlock.x,
+                       (N + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
-    count_equal_kernel<<<grid, block>>>(
+    count_2d_equal_kernel<<<blocksPerGrid, threadsPerBlock>>>(
         input.data_ptr<int>(),
         output.data_ptr<int>(),
         N,
+        M,
         static_cast<int>(k)
     );
     C10_CUDA_KERNEL_LAUNCH_CHECK();

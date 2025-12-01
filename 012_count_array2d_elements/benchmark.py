@@ -9,31 +9,30 @@ module = load(
     verbose=True
 )
 
-def torch_count_equal_kernel(input, k):
+def torch_count_2d_equal_kernel(input, k):
     # Ensure the output is int32 to match the custom kernel for comparison
     return torch.sum(input == k).to(torch.int32)
 
-input = torch.randint(0, 100000, (1000000,), device='cuda', dtype=torch.int32)
-c1 = torch_count_equal_kernel(input, 1)
+input = torch.randint(0, 100, (100, 100), device='cuda', dtype=torch.int32)
+c1 = torch_count_2d_equal_kernel(input, 1)
 c2 = module.count_equal_kernel_torch(input, 1)
 assert torch.allclose(c1, c2, atol=1e-5)
 
-Ns = [1000000, 10000000, 100000000, 1000000000] 
-Ks = [1, 50000, 100000]
+Ns = [[100, 100], [500, 500], [1000, 1000], [2000, 2000], [5000, 5000], [10000, 10000]] 
+Ks = [1, 50, 100]
 rounds = 10
 
 print("\nBenchmarking Custom and PyTorch for various sizes...")
-print(f"{'N':<10} {'K':<6} {'Custom (ms)':<18} {'Custom (GB/s)':<18} {'PyTorch (ms)':<18} {'PyTorch (GB/s)':<18} {'Speedup':<10}")
+print(f"{'N':<10} {'M':<10} {'K':<6} {'Custom (ms)':<18} {'Custom (GB/s)':<18} {'PyTorch (ms)':<18} {'PyTorch (GB/s)':<18} {'Speedup':<10}")
 
-for k in Ks:
-    for size in Ns:
+for size in Ns:
+    input = torch.randint(0, 100, (size[0], size[1]), device='cuda', dtype=torch.int32)
+    for k in Ks:
         pytorch_times = []
         custom_times = []
-        input = torch.randint(0, 100000, (size,), device='cuda', dtype=torch.int32)
-
         # Warm-up runs
         for _ in range(2):
-            c1 = torch_count_equal_kernel(input, k)
+            c1 = torch_count_2d_equal_kernel(input, k)
             c2 = module.count_equal_kernel_torch(input, k)
             assert torch.allclose(c1, c2, atol=1e-5)
         torch.cuda.synchronize()
@@ -41,7 +40,7 @@ for k in Ks:
         for _ in range(rounds):
             torch.cuda.synchronize()
             start_time = time.time()
-            c1 = torch_count_equal_kernel(input, k)
+            c1 = torch_count_2d_equal_kernel(input, k)
             torch.cuda.synchronize()
             pytorch_times.append(time.time() - start_time)
 
@@ -54,10 +53,10 @@ for k in Ks:
         pytorch_mean_ms = (sum(pytorch_times) / rounds) * 1000  # milliseconds
         custom_mean_ms = (sum(custom_times) / rounds) * 1000    # milliseconds
 
-        num_bytes = size * 4  # int32, bytes moved
+        num_bytes = size[0] * size[1] * 4  # int32, bytes moved
         custom_gbps = num_bytes / (custom_mean_ms * 1e6)
         pytorch_gbps = num_bytes / (pytorch_mean_ms * 1e6)
         # Avoid div0; show speedup as PyTorch/custom (how many times faster is custom)
         speedup = pytorch_mean_ms / custom_mean_ms if custom_mean_ms > 0 else float('inf')
 
-        print(f"{size:<10} {k:<6} {custom_mean_ms:<18.4f} {custom_gbps:<18.2f} {pytorch_mean_ms:<18.4f} {pytorch_gbps:<18.2f} {speedup:<10.2f}")
+        print(f"{size[0]:<10} {size[1]:<10} {k:<6} {custom_mean_ms:<18.4f} {custom_gbps:<18.2f} {pytorch_mean_ms:<18.4f} {pytorch_gbps:<18.2f} {speedup:<10.2f}")
