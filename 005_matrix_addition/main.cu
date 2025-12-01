@@ -12,25 +12,22 @@
     } \
 } while(0)
 
-typedef unsigned int uint;
-
 __global__ void matrix_add(
     const float* __restrict__ A, 
     const float* __restrict__ B, 
     float* __restrict__ C, 
     int N
 ) {
-    uint row = blockIdx.y * blockDim.y + threadIdx.y;
-    uint col = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t row = blockIdx.y * blockDim.y + threadIdx.y;
+    size_t col = blockIdx.x * blockDim.x + threadIdx.x;
     if (row < N && col < N) {
         C[row * N + col] = A[row * N + col] + B[row * N + col];
     }
-    
 };
 
 void benchmark() {
     printf("\nBenchmarking matrix addition kernel vs cuBLAS for various sizes...\n");
-    printf("%-10s %-16s %-14s   %-14s %-14s %-14s\n", "N", "Custom (ms)", "TFLOPs", "cuBLAS (ms)", "TFLOPs", "Speedup");
+    printf("%-10s %-16s %-14s   %-14s %-14s %-14s\n", "N", "Custom (ms)", "TFLOPS", "cuBLAS (ms)", "TFLOPS", "Speedup");
     int sizes[] = {512, 1024, 2048, 4096};
     const int num_sizes = sizeof(sizes)/sizeof(sizes[0]);
     const int num_runs = 5;
