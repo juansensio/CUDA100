@@ -35,7 +35,7 @@ for N in sizes:
     # Validate correctness at each size before benchmarking
     result_custom = module.softmax(input)
     result_torch = torch_softmax(input)
-    assert torch.allclose(result_custom, result_torch, atol=1e-4), f"Mismatch at size {N}: custom={result_custom}, torch={result_torch}"
+    assert torch.allclose(result_custom, result_torch, atol=1e-5), f"Mismatch at size {N}: custom={result_custom}, torch={result_torch}"
 
     # Measure custom softmax
     times_custom = []
