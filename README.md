@@ -16,15 +16,24 @@ This repository contains the code developed during my 100 days of CUDA programmi
 11. [count_array_elements](./011_count_array_elements): counts the number of elements in an array that are equal to a given value.
 12. [count_array2d_elements](./012_count_array2d_elements): counts the number of elements in a 2D array that are equal to a given value.
 13. [silu](./013_silu): performs a SiLU activation using the GPU.
+14. [reduction](./015_reduction): performs a reduction operation using the GPU.
 
 ## Resources
 
 List of resources used during the challenge:
 
-- Book "CUDA by Example"
-- Book "Programming Massively Parallel Processors"
+Books:
+- "CUDA by Example"
+- "Programming Massively Parallel Processors"
+
+Videos:
 - CUDA FreeCodeCamp Course https://youtu.be/86FAWCzIe_4?si=37G_SkoQEQp8dSod
 - GPU Mode Youtube Channel https://www.youtube.com/@GPUMODE/videos 
+
+Articles:
+- accelerate GEMM: https://siboehm.com/articles/22/CUDA-MMM
+- efficient matrix copy / transform: https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/
+- reduction: https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 
 The examples were developed on an NVIDIA RTX 3090 with CUDA 12.8 and driver 570.195.03 (Ubuntu 22.04)
 

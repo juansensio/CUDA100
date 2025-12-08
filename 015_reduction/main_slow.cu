@@ -15,45 +15,61 @@
     } \
 } while(0)
 
-// https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 
-template <unsigned int blockSize>
-__device__ void warpReduce(volatile float *sdata, unsigned int tid) {
-    if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
-    if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
-    if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
-    if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
-    if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
-    if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
-}
-
-template <unsigned int blockSize>
-__global__ void reduction_kernel(const float *g_idata, float *g_odata, unsigned int n) {
+// no podemos sincronizar a nivel global
+// cada block se calcula su valor
+// lanzamos kernels de manera recursiva hasta que solo quede un block
+__global__ void reduction_kernel(const float* input, float* output, int N) {
     extern __shared__ float sdata[];
     unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x * (blockSize * 2) + tid;
-    unsigned int gridSize = blockSize * 2 * gridDim.x;
-    sdata[tid] = 0;
     
-    // Each thread processes multiple elements (grid-stride loop with 2x unrolling)
-    while (i < n) {
-        sdata[tid] += g_idata[i];
-        if (i + blockSize < n) {
-            sdata[tid] += g_idata[i + blockSize];
-        }
-        i += gridSize;
-    }
+    // Halve the number of blocks, and replace single load
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    sdata[tid] = (i < N) ? input[i] : 0.0f;
+
+    // unsigned int i = blockIdx.x*(blockDim.x*2) + threadIdx.x;
+    // sdata[tid] = input[i] + input[i+blockDim.x];
+
     __syncthreads();
-    
-    // Reduction in shared memory with no divergence
-    if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }
-    if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }
-    if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
-    
-    // Final warp reduction (no sync needed)
-    if (tid < 32) warpReduce<blockSize>(sdata, tid);
-    if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+
+    // do reduction in shared mem
+    // Problem: highly divergent warps are very inefficient, and % operator is very slow
+    // for(unsigned int s = 1; s < blockDim.x; s *= 2) {
+    //     if (tid % (2 * s) == 0 && (tid + s) < blockDim.x) {
+    //         sdata[tid] += sdata[tid + s];
+    //     }
+    //     __syncthreads();
+    // }
+
+    // strided index and non-divergent branch
+    for (unsigned int s=1; s < blockDim.x; s *= 2) {
+        int index = 2 * s * tid;
+        if (index < blockDim.x) {
+            sdata[index] += sdata[index + s];
+        }
+        __syncthreads();
+    }
+
+    // With reversed loop and threadID-based indexing:
+    // Problem: Half of the threads are idle on first loop iteration!
+    // for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+    //     if (tid < s) {
+    //         sdata[tid] += sdata[tid + s];
+    //     }
+    //     __syncthreads();
+    // }
+
+    // Unroll the last warp reduce
+    // for (unsigned int s=blockDim.x/2; s>32; s>>=1) {
+    //     if (tid < s) sdata[tid] += sdata[tid + s];
+    //     __syncthreads();
+    // }
+    // if (tid < 32) warpReduce(sdata, tid);
+
+    // write result for this block to global mem
+    if (tid == 0) output[blockIdx.x] = sdata[0];
 }
+
 
 // Thrust reduction
 float thrust_reduce(const float* d_input, int N) {
@@ -87,38 +103,18 @@ float cub_reduce(const float* d_input, int N) {
 
 float reduction_recursive(const float* input, int N) {
     const int threadsPerBlock = 256;
-    
-    // Each block processes threadsPerBlock * 2 elements
-    // (because we load 2 elements per thread in the first iteration)
-    const int blocksPerGrid = (N + threadsPerBlock * 2 - 1) / (threadsPerBlock * 2);
+
+    // Halve the number of blocks, and replace single load
+    // With two loads and first add of the reduction
+    const int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
     
     float* output_d;
     CUDA_OK(cudaMalloc((void**)&output_d, blocksPerGrid * sizeof(float)));
-
-    // Use template to allow compile-time optimizations
-    switch (threadsPerBlock) {
-        case 512:
-            reduction_kernel<512><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 256:
-            reduction_kernel<256><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 128:
-            reduction_kernel<128><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 64:
-            reduction_kernel<64><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 32:
-            reduction_kernel<32><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 16:
-            reduction_kernel<16><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 8:
-            reduction_kernel<8><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 4:
-            reduction_kernel<4><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 2:
-            reduction_kernel<2><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-        case 1:
-            reduction_kernel<1><<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(input, output_d, N); break;
-    }
     
+    // Launch kernel with shared memory
+    reduction_kernel<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(
+        input, output_d, N
+    );
     CUDA_OK(cudaPeekAtLastError());
     CUDA_OK(cudaDeviceSynchronize());
     
