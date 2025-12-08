@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cublas_v2.h>
+#include <thrust/device_ptr.h>
+#include <thrust/reduce.h>
+#include <cub/cub.cuh>
 
 #define CUDA_OK(call) do { \
     cudaError_t err = (call); \
@@ -14,7 +17,7 @@
 
 // no podemos sincronizar a nivel global
 // cada block se calcula su valor
-// lanzamos kernel de manera recursiva hasta que solo quede un block
+// lanzamos kernels de manera recursiva hasta que solo quede un block
 __global__ void reduction_kernel(const float* input, float* output, int N) {
     extern __shared__ float sdata[];
     unsigned int tid = threadIdx.x;
@@ -36,77 +39,36 @@ __global__ void reduction_kernel(const float* input, float* output, int N) {
     if (tid == 0) output[blockIdx.x] = sdata[0];
 }
 
-// void benchmark() {
-//     // Range for N: 1 to 10,000 (see constraint)
-//     int sizes[] = {100, 1000, 10000, 100000};
-//     const int num_sizes = sizeof(sizes) / sizeof(sizes[0]);
-//     const int num_runs = 8;
+// Thrust reduction
+float thrust_reduce(const float* d_input, int N) {
+    thrust::device_ptr<const float> dev_ptr(d_input);
+    return thrust::reduce(dev_ptr, dev_ptr + N, 0.0f, thrust::plus<float>());
+}
 
-//     printf("\nBenchmarking silu_kernel for various N...\n");
-//     printf("%-11s %-14s %-14s %-14s\n", "N", "Time (ms)", "BW (GB/s)", "TFLOPs");
+// CUB reduction
+float cub_reduce(const float* d_input, int N) {
+    float* d_output;
+    CUDA_OK(cudaMalloc(&d_output, sizeof(float)));
+    
+    // Determine temporary storage size
+    void* d_temp_storage = nullptr;
+    size_t temp_storage_bytes = 0;
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_input, d_output, N);
+    
+    // Allocate temporary storage
+    CUDA_OK(cudaMalloc(&d_temp_storage, temp_storage_bytes));
+    
+    // Run reduction
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_input, d_output, N);
+    
+    float result;
+    CUDA_OK(cudaMemcpy(&result, d_output, sizeof(float), cudaMemcpyDeviceToHost));
+    
+    CUDA_OK(cudaFree(d_temp_storage));
+    CUDA_OK(cudaFree(d_output));
+    return result;
+}
 
-//     for (int idx = 0; idx < num_sizes; ++idx) {
-//         int N = sizes[idx];
-//         int halfN = N / 2;
-//         size_t bytes = N * sizeof(float);
-
-//         // Allocate and initialize input array with floats in [-100.0, 100.0]
-//         float *input = (float*)malloc(bytes);
-//         for (int i = 0; i < N; ++i) {
-//             input[i] = ((float)rand()/(float)RAND_MAX) * 200.0f - 100.0f;
-//         }
-
-//         float *input_d = nullptr, *output_d = nullptr;
-//         CUDA_OK(cudaMalloc((void**)&input_d, bytes));
-//         CUDA_OK(cudaMalloc((void**)&output_d, halfN * sizeof(float)));
-//         CUDA_OK(cudaMemcpy(input_d, input, bytes, cudaMemcpyHostToDevice));
-
-//         dim3 block(256);
-//         dim3 grid((halfN + block.x - 1) / block.x);
-
-//         // --- kernel timing ---
-//         float ms_total = 0.0f;
-//         cudaEvent_t start, stop;
-//         cudaEventCreate(&start);
-//         cudaEventCreate(&stop);
-
-//         // Warm-up
-//         swiglu_kernel<<<grid, block>>>(input_d, output_d, halfN);
-//         CUDA_OK(cudaDeviceSynchronize());
-
-//         for (int run = 0; run < num_runs; ++run) {
-//             cudaEventRecord(start);
-//             swiglu_kernel<<<grid, block>>>(input_d, output_d, halfN);
-//             cudaEventRecord(stop);
-//             cudaEventSynchronize(stop);
-//             float ms = 0.0f;
-//             cudaEventElapsedTime(&ms, start, stop);
-//             ms_total += ms;
-//         }
-//         ms_total /= num_runs;
-
-//         // Calculate memory bandwidth (read + write = 2 * N * sizeof(float))
-//         double total_bytes = 2.0 * halfN * sizeof(float);
-//         double bandwidth_gbps = total_bytes / (ms_total * 1e6); // GB/s
-
-//         // Compute FLOPs for SiLU operation
-//         // Each output: 1 mul (*x), 2 add/sub, 1 exp, 1 div, and 1 more mul (x*sigmoid) = about 5 FLOP
-//         // Realistically, exp and div counted as one each, so a rough estimate is 5 FLOPs per element
-//         double flops_per_element = 5.0; 
-//         double total_flops = halfN * flops_per_element;
-//         double tflops = (total_flops / (ms_total * 1e-3)) / 1e12; // TFLOPs
-
-//         printf("%-11d %-14.3f %-14.2f %-14.4f\n", halfN, ms_total, bandwidth_gbps, tflops);
-
-//         free(input);
-//         CUDA_OK(cudaFree(input_d));
-//         CUDA_OK(cudaFree(output_d));
-//         cudaEventDestroy(start);
-//         cudaEventDestroy(stop);
-//     }
-// }
-
-// Recursive reduction on GPU
 float reduction_recursive(const float* input, int N) {
     const int threadsPerBlock = 256;
     const int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
@@ -135,6 +97,99 @@ float reduction_recursive(const float* input, int N) {
     return result;
 }
 
+void benchmark() {
+    int sizes[] = {1000, 10000, 100000, 1000000, 10000000, 100000000};
+    const int num_sizes = sizeof(sizes) / sizeof(sizes[0]);
+    const int num_runs = 10;
+
+    printf("\n=== Reduction Benchmark: Custom vs Thrust vs CUB ===\n");
+    printf("%-12s %-14s %-14s %-14s %-14s %-14s %-14s\n", 
+           "N", "Custom (ms)", "Thrust (ms)", "CUB (ms)", 
+           "Custom GB/s", "Thrust GB/s", "CUB GB/s");
+
+    for (int idx = 0; idx < num_sizes; ++idx) {
+        int N = sizes[idx];
+        size_t bytes = N * sizeof(float);
+
+        // Allocate and initialize input array with random floats
+        float *input = (float*)malloc(bytes);
+        for (int i = 0; i < N; ++i) {
+            input[i] = ((float)rand()/(float)RAND_MAX) * 2000.0f - 1000.0f;
+        }
+
+        float *input_d;
+        CUDA_OK(cudaMalloc((void**)&input_d, bytes));
+        CUDA_OK(cudaMemcpy(input_d, input, bytes, cudaMemcpyHostToDevice));
+
+        cudaEvent_t start, stop;
+        CUDA_OK(cudaEventCreate(&start));
+        CUDA_OK(cudaEventCreate(&stop));
+
+        // --- Warm-up ---
+        reduction_recursive(input_d, N);
+        CUDA_OK(cudaDeviceSynchronize());
+        thrust_reduce(input_d, N);
+        CUDA_OK(cudaDeviceSynchronize());
+        cub_reduce(input_d, N);
+        CUDA_OK(cudaDeviceSynchronize());
+
+        // --- Benchmark Custom ---
+        float ms_custom = 0.0f;
+        for (int run = 0; run < num_runs; ++run) {
+            CUDA_OK(cudaEventRecord(start));
+            float result = reduction_recursive(input_d, N);
+            CUDA_OK(cudaEventRecord(stop));
+            CUDA_OK(cudaEventSynchronize(stop));
+            float ms = 0.0f;
+            CUDA_OK(cudaEventElapsedTime(&ms, start, stop));
+            ms_custom += ms;
+        }
+        ms_custom /= num_runs;
+
+        // --- Benchmark Thrust ---
+        float ms_thrust = 0.0f;
+        for (int run = 0; run < num_runs; ++run) {
+            CUDA_OK(cudaEventRecord(start));
+            float result = thrust_reduce(input_d, N);
+            CUDA_OK(cudaEventRecord(stop));
+            CUDA_OK(cudaEventSynchronize(stop));
+            float ms = 0.0f;
+            CUDA_OK(cudaEventElapsedTime(&ms, start, stop));
+            ms_thrust += ms;
+        }
+        ms_thrust /= num_runs;
+
+        // --- Benchmark CUB ---
+        float ms_cub = 0.0f;
+        for (int run = 0; run < num_runs; ++run) {
+            CUDA_OK(cudaEventRecord(start));
+            float result = cub_reduce(input_d, N);
+            CUDA_OK(cudaEventRecord(stop));
+            CUDA_OK(cudaEventSynchronize(stop));
+            float ms = 0.0f;
+            CUDA_OK(cudaEventElapsedTime(&ms, start, stop));
+            ms_cub += ms;
+        }
+        ms_cub /= num_runs;
+
+        // Calculate bandwidth (bytes read only for reduction)
+        double bandwidth_custom = bytes / (ms_custom * 1e6); // GB/s
+        double bandwidth_thrust = bytes / (ms_thrust * 1e6);
+        double bandwidth_cub = bytes / (ms_cub * 1e6);
+
+        printf("%-12d %-14.4f %-14.4f %-14.4f %-14.2f %.2f (%.2fx) %.2f (%.2fx)\n",
+               N, ms_custom, ms_thrust, ms_cub,
+               bandwidth_custom,
+               bandwidth_thrust, ms_thrust / ms_custom,
+               bandwidth_cub, ms_cub / ms_custom);
+
+        free(input);
+        CUDA_OK(cudaFree(input_d));
+        CUDA_OK(cudaEventDestroy(start));
+        CUDA_OK(cudaEventDestroy(stop));
+    }
+}
+
 int main() {
     printf("Testing correctness with small array...\n");
     int N = 8;
@@ -151,10 +206,12 @@ int main() {
     float eps = 1e-5;
     if (fabsf(result - expected) > eps) {
         printf("Error: expected %.6f, got %.6f\n", expected, result);
-        CUDA_OK(cudaFree(input_d));
         return EXIT_FAILURE;
     }
     printf("✓ Result is correct: %.6f\n", result);
-    // benchmark();
+    
+    CUDA_OK(cudaFree(input_d));
+    
+    benchmark();
     return 0;
 }
