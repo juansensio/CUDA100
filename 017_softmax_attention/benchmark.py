@@ -11,7 +11,8 @@ module = load(
 )
 
 def torch_softmax_attention(Q, K, V):
-    return torch.nn.functional.softmax(Q @ K.T / math.sqrt(Q.size(1)), dim=1) @ V
+    # return torch.nn.functional.softmax(Q @ K.T / math.sqrt(Q.size(1)), dim=1) @ V
+    return torch.nn.functional.scaled_dot_product_attention(Q, K, V)
 
 Q = torch.rand(2, 4, device='cuda', dtype=torch.float32)
 K = torch.rand(3, 4, device='cuda', dtype=torch.float32)
